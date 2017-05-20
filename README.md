@@ -159,10 +159,18 @@ and Common Lisp's `FORMAT`:
 ## File sizes
 
 ``` haskell
-> format (bytes shortest) 1024
-"1KB"
-> format (bytes (fixed 2 % " ")) (1024*1024*5)
-"5.00 MB"
+> format (bytesMetric (fixed 1)) 4096
+"4.1kB"
+> format (bytesMetric shortest) 4096
+"4.096kB"
+> format (bytesMetric (fixed 2 % " ")) (1024*1024*5)
+"5.24 MB"
+> format (bytesBinary (fixed 1)) 4096
+"4.0KiB"
+> format (bytesBinary shortest) 4096
+"4KiB"
+> format (bytesBinary (fixed 2 % " ")) (1024*1024*5)
+"5.00 MiB"
 ```
 
 ## Compose formatters

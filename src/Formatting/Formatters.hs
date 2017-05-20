@@ -51,6 +51,8 @@ module Formatting.Formatters
   prefixOct,
   prefixHex,
   bytes,
+  bytesMetric,
+  bytesBinary,
   -- * Buildables
   build,
   Buildable,
@@ -286,28 +288,54 @@ intToDigit' i
   | i >= 10 && i < 36 = chr (ord 'a' + i - 10)
   | otherwise = error ("intToDigit': Invalid int " ++ show i)
 
--- | Renders a given byte count using an appropiate decimal binary suffix:
---
--- >>> format (bytes shortest) 1024
--- "1KB"
---
--- >>> format (bytes (fixed 2 % " ")) (1024*1024*5)
--- "5.00 MB"
---
+-- Keep the simple bytes function for backwards compatibility.
+-- We simply map it on one of the new functions
 bytes :: (Ord f,Integral a,Fractional f)
-      => Format Builder (f -> Builder) -- ^ formatter for the decimal part
+      => Format Builder (f -> Builder) -- formatter for the decimal part
       -> Format r (a -> r)
-bytes d = later go
-  where go bs =
-          bprint d (fromIntegral (signum bs) * dec) <> bytesSuffixes !!
-          i
-          where (dec,i) = getSuffix (abs bs)
-        getSuffix n =
-          until p
-                (\(x,y) -> (x / 1024,y + 1))
-                (fromIntegral n,0)
-          where p (n',numDivs) =
-                  n' < 1024 || numDivs == (length bytesSuffixes - 1)
-        bytesSuffixes =
-          ["B","KB","MB","GB","TB","PB","EB","ZB","YB"]
+bytes d = bytesMetric d
 
+-- | Renders a given byte count using an appropiate metric prefix:
+-- >>> format (bytesMetric (fixed 1)) 4096
+-- "4.1kB"
+-- >>> format (bytesMetric shortest) 4096
+-- "4kB"
+-- >>> format (bytesMetric (fixed 2 % " ")) (1024*1024*5)
+-- "5.24 MB"
+-- See:
+-- https://en.wikipedia.org/wiki/Metric_prefix
+bytesMetric :: (Ord f, Fractional f, Integral a) =>
+      Format Builder (f -> Builder) -- formatter for the decimal part
+      -> Format r (a -> r)
+bytesMetric d = later (bytes_logic 1000 ["B","kB","MB","GB","TB","PB","EB","ZB","YB"] d)
+
+-- | Renders a given byte count using an appropiate binary prefix:
+-- >>> format (bytesBinary (fixed 1)) 4096
+-- "4.0KiB"
+-- >>> format (bytesBinary shortest) 4096
+-- "4KiB"
+-- >>> format (bytesBinary (fixed 2 % " ")) (1024*1024*5)
+-- "5.00 MiB"
+-- See:
+-- https://en.wikipedia.org/wiki/Metric_prefix#Binary_prefixes
+-- https://en.wikipedia.org/wiki/Binary_prefix
+bytesBinary :: (Ord f, Fractional f, Integral a) =>
+       Format Builder (f -> Builder)
+       -> Format r (a -> r)
+bytesBinary d = later (bytes_logic 1024 ["B","KiB","MiB","GiB","TiB","PiB","EiB","ZiB","YiB"] d)
+
+
+-- | Internal function for rendering bytes, based on what number we use to divide
+bytes_logic :: forall a a1 a2.
+               (Fractional a2, Integral a1, Ord a2, Monoid a) =>
+               a2 -> [a] -> Format Builder (a2 -> a) -> a1 -> a
+bytes_logic divisor bytesSuffixes fmt_builder bs =
+  bprint fmt_builder (fromIntegral (signum bs) * dec) <> bytesSuffixes !! i
+  where
+    (dec,i) = getSuffix (abs bs)
+    getSuffix n =
+      until p
+            (\(x,y) -> (x / divisor,y + 1))
+            (fromIntegral n,0)
+      where p (n',numDivs) =
+              n' < divisor || numDivs == (length bytesSuffixes - 1)

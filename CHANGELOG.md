@@ -1,3 +1,9 @@
+6.2.5
+
+* Added bytesBinary
+* Added bytesMetric
+* Changed bytes to call bytesMetric
+
 6.2.1
 
 * Added bytesDecimal
